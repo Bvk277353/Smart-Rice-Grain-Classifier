@@ -1,14 +1,15 @@
+// Points directly to your live Render API
 const BACKEND_URL = "https://smart-rice-grain-classifier.onrender.com";
 
 const form = document.getElementById("upload-form");
-const imageInput = document.getElementById("image-input") || document.querySelector('input[type="file"]');
+const imageInput = document.getElementById("image-upload");
 const spinner = document.getElementById("loading-spinner");
 const resultContainer = document.getElementById("result-container");
-const submitBtn = document.getElementById("submit-btn") || document.querySelector('button[type="submit"]');
+const submitBtn = document.getElementById("submit-btn");
 
 if (form) {
   form.addEventListener("submit", async (e) => {
-    // Stop the browser from navigating to /predict on github.io
+    // CRITICAL FIX: This stops the browser from doing a default POST and hitting the 405 error
     e.preventDefault();
 
     const file = imageInput.files[0];
@@ -20,12 +21,13 @@ if (form) {
     const formData = new FormData();
     formData.append("image", file);
 
-    // Show loading state if elements exist
-    if (spinner) spinner.style.display = "block";
-    if (resultContainer) resultContainer.style.display = "none";
-    if (submitBtn) submitBtn.disabled = true;
+    // Show loading spinner, hide old results, disable button to prevent double-clicks
+    spinner.style.display = "block";
+    resultContainer.style.display = "none";
+    submitBtn.disabled = true;
 
     try {
+      // Send the image invisibly to Render
       const response = await fetch(`${BACKEND_URL}/predict`, {
         method: "POST",
         body: formData,
@@ -35,32 +37,24 @@ if (form) {
         throw new Error(`Server returned ${response.status}`);
       }
 
+      // Read the JSON response from your app.py
       const data = await response.json();
 
-      // Display the predictions
-      if (document.getElementById("result-label")) {
-        document.getElementById("result-label").textContent = data.label;
-      }
-      if (document.getElementById("result-confidence")) {
-        document.getElementById("result-confidence").textContent = `${data.confidence}%`;
-      }
-      if (document.getElementById("result-suggestion")) {
-        document.getElementById("result-suggestion").textContent = data.suggestion;
-      }
-      if (resultContainer) {
-        resultContainer.style.display = "block";
-      }
-
-      // If you don't have result spans in your HTML, show an alert with the output
-      if (!resultContainer) {
-        alert(`Prediction: ${data.label} (${data.confidence}%)\n\nSuggestion: ${data.suggestion}`);
-      }
+      // Inject the results into the HTML
+      document.getElementById("result-label").textContent = data.label;
+      document.getElementById("result-confidence").textContent = `${data.confidence}%`;
+      document.getElementById("result-suggestion").textContent = data.suggestion;
+      
+      // Reveal the result box
+      resultContainer.style.display = "block";
+      
     } catch (error) {
-      console.error(error);
-      alert("Error: Unable to connect to Render. If the server was asleep, please wait 30 seconds and try again.");
+      console.error("Error:", error);
+      alert("Connection failed. The Render server might be waking up. Please wait 30 seconds and click Classify again.");
     } finally {
-      if (spinner) spinner.style.display = "none";
-      if (submitBtn) submitBtn.disabled = false;
+      // Hide spinner, re-enable button
+      spinner.style.display = "none";
+      submitBtn.disabled = false;
     }
   });
 }
